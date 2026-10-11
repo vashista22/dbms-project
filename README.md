@@ -28,7 +28,7 @@ A simplified, full-stack food delivery platform simulating core Swiggy workflows
 4. Run `npm install` and `npm run dev` to start the Next.js development server.
 
 ## Team Members & Contributions
-*   **Vashista Vasantharao [ID: 2023A8PS0439H]**: Developed the SQL DDL scripts (`schema.sql`) including table creation and constraints; authored the project README, and generated the final ER/EER diagrams.
+*   **Vashista Vasantharao [ID: 2023A8PS0439H]**: Developed the SQL DDL scripts (`schema.sql`) including table creation and constraints; authored the project README, and generated the final ER/EER diagrams, and set up the GitHub repository.
 *   **Aayush Rastogi [ID: 2023B2A30888H]**: Gathered requirements, defined business rules/workflows and documented the relational schema mapping, constraints for the design PDF.
-*   **Anirudh Peddinti [ID: 2023AAPS0192H]**: Defined technology stack & architecture, set up the GitHub repository, and scaffolded the Next.js + PostgreSQL project.
+*   **Anirudh Peddinti [ID: 2023AAPS0192H]**: Defined technology stack & architecture, and scaffolded the Next.js + PostgreSQL project.
 *   **Sri Niketh Mulagada [ID: 2023B2A80941H]**: Authored the normalization justification, proofread the database logic, and compiled the final Design PDF.
