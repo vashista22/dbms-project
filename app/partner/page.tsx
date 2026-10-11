@@ -1,0 +1,4 @@
+import {pool} from "@/lib/db";
+import OrderStatus from "../order-status";
+export const dynamic="force-dynamic";
+export default async function PartnerPage(){const orders=(await pool.query("SELECT o.order_id,o.status,o.total,r.name restaurant FROM orders o JOIN restaurants r USING(restaurant_id) WHERE o.partner_id=3 AND o.status IN ('accepted','preparing','picked_up') ORDER BY o.placed_at")).rows;return <><h1>Delivery partner</h1><p className="muted">Demo partner ID 3 · Advance assigned orders through pickup and delivery.</p><section className="panel">{orders.map(o=><div className="order-row" key={o.order_id}><span>#{o.order_id} · {o.restaurant} · ₹{o.total}</span><OrderStatus orderId={o.order_id} status={o.status}/></div>)}{!orders.length&&<p className="muted">No active assigned deliveries.</p>}</section></>}

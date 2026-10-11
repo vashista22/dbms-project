@@ -1,0 +1,8 @@
+"use client";
+import { FormEvent,useState } from "react";
+type Item={item_id:number;name:string;price:string;is_veg:boolean;is_available:boolean};
+export default function MenuEditor({restaurantId,items}:{restaurantId:number;items:Item[]}){const [message,setMessage]=useState("");
+ async function add(e:FormEvent<HTMLFormElement>){e.preventDefault();const fd=new FormData(e.currentTarget);const response=await fetch("/api/menu-items",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user_id:2,restaurant_id:restaurantId,name:fd.get("name"),price:Number(fd.get("price")),is_veg:fd.get("is_veg")==="on"})});const data=await response.json();setMessage(response.ok?"Menu item added.":data.error||"Could not add item.");if(response.ok)location.reload();}
+ async function toggle(item:Item){const response=await fetch("/api/menu-items",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({user_id:2,item_id:item.item_id,is_available:!item.is_available})});const data=await response.json();setMessage(response.ok?"Availability updated.":data.error||"Could not update item.");if(response.ok)location.reload();}
+ return <><div>{items.map(i=><div className="order-row" key={i.item_id}><span>{i.name} · ₹{i.price} · {i.is_veg?"Veg":"Non-veg"} · {i.is_available?"Available":"Unavailable"}</span><button onClick={()=>toggle(i)}>{i.is_available?"Mark unavailable":"Mark available"}</button></div>)}</div><form className="filters" onSubmit={add}><input name="name" placeholder="Dish name" required/><input name="price" type="number" min="0" step="0.01" placeholder="Price" required/><label><input name="is_veg" type="checkbox"/> Vegetarian</label><button>Add dish</button></form>{message&&<p className="notice">{message}</p>}</>;
+}
