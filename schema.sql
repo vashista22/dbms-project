@@ -3,7 +3,9 @@
 -- Schema Definition: schema.sql
 -- ============================================================
 
--- Clean up existing tables in reverse dependency order
+-- Clean up existing objects
+DROP VIEW IF EXISTS view_top_dishes;
+DROP VIEW IF EXISTS view_restaurant_sales;
 DROP TABLE IF EXISTS reviews CASCADE;
 DROP TABLE IF EXISTS payments CASCADE;
 DROP TABLE IF EXISTS order_items CASCADE;
@@ -17,17 +19,18 @@ DROP TABLE IF EXISTS restaurants CASCADE;
 DROP TABLE IF EXISTS addresses CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
--- 1. USERS
+-- ============================================================
+-- 1. TABLES & BASE CONSTRAINTS
+-- ============================================================
 CREATE TABLE users (
     user_id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     phone VARCHAR(20) UNIQUE NOT NULL,
     role VARCHAR(50) NOT NULL CHECK (role IN ('customer', 'owner', 'partner', 'admin')),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. ADDRESSES (Weak Entity: composite primary key)
 CREATE TABLE addresses (
     user_id INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     address_no INT NOT NULL,
@@ -38,7 +41,6 @@ CREATE TABLE addresses (
     PRIMARY KEY (user_id, address_no)
 );
 
--- 3. RESTAURANTS
 CREATE TABLE restaurants (
     restaurant_id SERIAL PRIMARY KEY,
     owner_id INT NOT NULL REFERENCES users(user_id) ON DELETE RESTRICT,
@@ -49,20 +51,17 @@ CREATE TABLE restaurants (
     avg_rating NUMERIC(3, 2) CHECK (avg_rating >= 1.0 AND avg_rating <= 5.0)
 );
 
--- 4. CUISINES
 CREATE TABLE cuisines (
     cuisine_id SERIAL PRIMARY KEY,
     name VARCHAR(100) UNIQUE NOT NULL
 );
 
--- 5. RESTAURANT_CUISINES (Resolves M:N relationship)
 CREATE TABLE restaurant_cuisines (
     restaurant_id INT NOT NULL REFERENCES restaurants(restaurant_id) ON DELETE CASCADE,
     cuisine_id INT NOT NULL REFERENCES cuisines(cuisine_id) ON DELETE CASCADE,
     PRIMARY KEY (restaurant_id, cuisine_id)
 );
 
--- 6. MENU_ITEMS
 CREATE TABLE menu_items (
     item_id SERIAL PRIMARY KEY,
     restaurant_id INT NOT NULL REFERENCES restaurants(restaurant_id) ON DELETE CASCADE,
@@ -72,7 +71,6 @@ CREATE TABLE menu_items (
     is_available BOOLEAN DEFAULT true
 );
 
--- 7. DELIVERY_PARTNERS (Specialization of users)
 CREATE TABLE delivery_partners (
     partner_id INT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
     vehicle_no VARCHAR(50) UNIQUE NOT NULL,
@@ -80,7 +78,6 @@ CREATE TABLE delivery_partners (
     status VARCHAR(50) DEFAULT 'offline' CHECK (status IN ('offline', 'available', 'busy'))
 );
 
--- 8. COUPONS
 CREATE TABLE coupons (
     code VARCHAR(50) PRIMARY KEY,
     discount_pct INT NOT NULL CHECK (discount_pct >= 1 AND discount_pct <= 100),
@@ -91,7 +88,6 @@ CREATE TABLE coupons (
     CHECK (valid_from <= valid_to)
 );
 
--- 9. ORDERS
 CREATE TABLE orders (
     order_id SERIAL PRIMARY KEY,
     customer_id INT NOT NULL,
@@ -104,18 +100,15 @@ CREATE TABLE orders (
     delivery_fee NUMERIC(10, 2) NOT NULL CHECK (delivery_fee >= 0),
     discount NUMERIC(10, 2) DEFAULT 0 CHECK (discount >= 0),
     total NUMERIC(10, 2) NOT NULL CHECK (total >= 0),
-    placed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    delivered_at TIMESTAMP,
-    -- Enforces that the order address belongs strictly to the customer placing it
+    placed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    delivered_at TIMESTAMPTZ,
     FOREIGN KEY (customer_id, address_no) REFERENCES addresses(user_id, address_no) ON DELETE RESTRICT
 );
 
--- Enforce: A delivery partner can have at most one active order at any time
 CREATE UNIQUE INDEX one_active_order_per_partner 
 ON orders (partner_id) 
 WHERE partner_id IS NOT NULL AND status IN ('accepted', 'preparing', 'picked_up');
 
--- 10. ORDER_ITEMS
 CREATE TABLE order_items (
     order_id INT NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
     item_id INT NOT NULL REFERENCES menu_items(item_id) ON DELETE RESTRICT,
@@ -124,26 +117,121 @@ CREATE TABLE order_items (
     PRIMARY KEY (order_id, item_id)
 );
 
--- 11. PAYMENTS
 CREATE TABLE payments (
     payment_id SERIAL PRIMARY KEY,
     order_id INT UNIQUE NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
     amount NUMERIC(10, 2) NOT NULL CHECK (amount >= 0),
     method VARCHAR(50) NOT NULL CHECK (method IN ('upi', 'card', 'cod')),
     status VARCHAR(50) NOT NULL CHECK (status IN ('initiated', 'completed', 'failed', 'refunded')),
-    paid_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    paid_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- 12. REVIEWS
 CREATE TABLE reviews (
     order_id INT PRIMARY KEY REFERENCES orders(order_id) ON DELETE CASCADE,
     food_rating INT NOT NULL CHECK (food_rating >= 1 AND food_rating <= 5),
     delivery_rating INT NOT NULL CHECK (delivery_rating >= 1 AND delivery_rating <= 5),
     comment TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- Cross-row business rules (included here so a fresh schema has full integrity).
+-- ============================================================
+-- 2. REPORTING VIEWS
+-- ============================================================
+CREATE VIEW view_restaurant_sales AS
+SELECT 
+    r.restaurant_id, 
+    r.name AS restaurant_name, 
+    COUNT(o.order_id) AS total_orders, 
+    COALESCE(SUM(o.total), 0) AS total_revenue
+FROM restaurants r
+LEFT JOIN orders o ON r.restaurant_id = o.restaurant_id AND o.status = 'delivered'
+GROUP BY r.restaurant_id, r.name;
+
+CREATE VIEW view_top_dishes AS
+SELECT 
+    m.restaurant_id, 
+    r.name AS restaurant_name, 
+    m.item_id, 
+    m.name AS dish_name, 
+    SUM(oi.quantity) AS total_sold
+FROM menu_items m
+JOIN restaurants r ON m.restaurant_id = r.restaurant_id
+JOIN order_items oi ON m.item_id = oi.item_id
+JOIN orders o ON oi.order_id = o.order_id
+WHERE o.status = 'delivered'
+GROUP BY m.restaurant_id, r.name, m.item_id, m.name;
+
+-- ============================================================
+-- 3. SEARCH & DASHBOARD INDEXES
+-- ============================================================
+CREATE INDEX idx_restaurants_city ON restaurants(city);
+CREATE INDEX idx_cuisines_name ON cuisines(name);
+CREATE INDEX idx_menu_items_is_veg ON menu_items(is_veg);
+CREATE INDEX idx_menu_items_price ON menu_items(price);
+CREATE INDEX idx_orders_status ON orders(status);
+
+-- ============================================================
+-- 4. ADVANCED TRIGGERS & BUSINESS RULES
+-- ============================================================
+
+-- Role Consistency: Owner
+CREATE OR REPLACE FUNCTION enforce_restaurant_owner_role() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM users WHERE user_id = NEW.owner_id AND role = 'owner') THEN
+    RAISE EXCEPTION 'Restaurant owner_id must reference a user with the owner role';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER check_owner_role BEFORE INSERT OR UPDATE OF owner_id ON restaurants 
+FOR EACH ROW EXECUTE FUNCTION enforce_restaurant_owner_role();
+
+-- Role Consistency: Partner
+CREATE OR REPLACE FUNCTION enforce_delivery_partner_role() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM users WHERE user_id = NEW.partner_id AND role = 'partner') THEN
+    RAISE EXCEPTION 'partner_id must reference a user with the partner role';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER check_partner_role BEFORE INSERT ON delivery_partners 
+FOR EACH ROW EXECUTE FUNCTION enforce_delivery_partner_role();
+
+-- Avg Rating Sync
+CREATE OR REPLACE FUNCTION sync_restaurant_avg_rating() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE target_rest_id INT;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    SELECT restaurant_id INTO target_rest_id FROM orders WHERE order_id = OLD.order_id;
+  ELSE
+    SELECT restaurant_id INTO target_rest_id FROM orders WHERE order_id = NEW.order_id;
+  END IF;
+
+  UPDATE restaurants
+  SET avg_rating = (
+    SELECT ROUND(AVG(r.food_rating)::numeric, 2)
+    FROM reviews r JOIN orders o ON r.order_id = o.order_id
+    WHERE o.restaurant_id = target_rest_id
+  )
+  WHERE restaurant_id = target_rest_id;
+
+  IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+END $$;
+CREATE TRIGGER trigger_sync_rating AFTER INSERT OR UPDATE OR DELETE ON reviews 
+FOR EACH ROW EXECUTE FUNCTION sync_restaurant_avg_rating();
+
+-- Deferred "At Least One Item" Check
+CREATE OR REPLACE FUNCTION enforce_order_not_empty() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM order_items WHERE order_id = NEW.order_id) THEN
+    RAISE EXCEPTION 'An order must contain at least one item.';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE CONSTRAINT TRIGGER trigger_order_not_empty 
+AFTER INSERT ON orders DEFERRABLE INITIALLY DEFERRED 
+FOR EACH ROW EXECUTE FUNCTION enforce_order_not_empty();
+
+-- [Mid-Sem Triggers Retained Below]
 CREATE OR REPLACE FUNCTION enforce_order_item_rules() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE order_restaurant integer; item_restaurant integer; available boolean;
 BEGIN
