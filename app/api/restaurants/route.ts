@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { apiError } from "@/lib/api-errors";
 export async function GET(req: NextRequest) {
+  try {
   const p=req.nextUrl.searchParams, values: unknown[]=[]; const filters:string[]=["r.is_open=true"];
   for(const [key,sql] of [["city","r.city ILIKE"],["cuisine","c.name ILIKE"]] as const){const v=p.get(key);if(v){values.push(`%${v}%`);filters.push(`${sql} $${values.length}`)}}
   const dishFilters=["m.restaurant_id=r.restaurant_id","m.is_available"];
@@ -12,4 +14,7 @@ export async function GET(req: NextRequest) {
   if(p.get("veg")==="true"||p.has("min_price")||p.has("max_price"))filters.push(`EXISTS(SELECT 1 FROM menu_items m WHERE ${dishFilters.join(" AND ")})`);
   const q=await pool.query(`SELECT DISTINCT r.restaurant_id,r.name,r.city,r.avg_rating FROM restaurants r LEFT JOIN restaurant_cuisines rc USING(restaurant_id) LEFT JOIN cuisines c USING(cuisine_id) WHERE ${filters.join(" AND ")} ORDER BY r.name`,values);
   return NextResponse.json(q.rows);
+  } catch (error) {
+    return apiError(error, "Restaurants could not be loaded.", 500);
+  }
 }

@@ -2,7 +2,7 @@
   "name": "food-delivery-dbms-project",
   "version": "1.0.0",
   "private": true,
-  "scripts": { "dev": "next dev", "build": "next build", "start": "next start" },
+  "scripts": { "dev": "next dev", "build": "next build", "start": "next start", "verify:reports": "node scripts/verify-reports.mjs", "test:double-assignment": "node scripts/test-double-assignment.mjs" },
   "dependencies": { "next": "^15.0.0", "pg": "^8.13.0", "react": "^19.0.0", "react-dom": "^19.0.0" },
   "devDependencies": { "@types/node": "^22.0.0", "@types/pg": "^8.11.0", "@types/react": "^19.0.0", "@types/react-dom": "^19.0.0", "typescript": "^5.7.0" }
 }
