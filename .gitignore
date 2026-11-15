@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Local environment secrets
+.env
+.env*.local
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+
+# Standalone submission PDFs & local reference/prep docs
+/docs/
+/*.pdf
