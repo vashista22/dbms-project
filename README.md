@@ -1,7 +1,8 @@
 # QuickBite — Swiggy-Style Food Delivery System
 
 **CS F212 Database Systems — Final Course Project (Group-12 / P2)**  
-**Repository:** https://github.com/vashista22/dbms-project
+**Repository:** https://github.com/vashista22/dbms-project  
+**Submission Tag:** `final` · **Code Commit:** `8ee85e1` (`8ee85e1f39b5eb560146b5aea330aa1b9e1db15e`)
 
 QuickBite is a full-stack relational database application modeling a Swiggy-style multi-restaurant food delivery platform built directly on **PostgreSQL 18** and **Next.js 15 (App Router)** using the **`pg` (`node-postgres`)** driver with raw parameterized SQL queries and explicit transaction management (no ORM).
 
